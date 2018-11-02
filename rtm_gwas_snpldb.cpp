@@ -670,7 +670,7 @@ int rtm_gwas_snpldb_nam()
 
 int rtm_gwas_snpldb(int argc, char *argv[])
 {
-    std::cerr << "RTM-GWAS 1.5 SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
+    std::cerr << "RTM-GWAS v1.5 SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
 
     CmdLine cmd;
 
