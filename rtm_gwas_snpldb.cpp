@@ -541,6 +541,8 @@ void group_snps(const Genotype &gt, std::vector<size_t> &snps, Genotype &ogt)
 
     // TODO: use cluster analysis if na = 1
     // TODO: maf_new may less than maf_threshold
+    if (na == 1)
+        na = 2;
 
     std::vector<size_t> hc(nhap);
     std::iota(hc.begin(), hc.end(), 0);
