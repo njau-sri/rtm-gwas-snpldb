@@ -470,7 +470,7 @@ int read_block(const std::string &filename, std::vector<std::string> &chr,
     return 0;
 }
 
-std::vector< std::vector<size_t> > index_snps(const Genotype &gt, const std::vector<std::string> &chr)
+std::vector< std::vector<size_t> > index_snp(const Genotype &gt, const std::vector<std::string> &chr)
 {
     auto nchr = chr.size();
 
@@ -502,14 +502,14 @@ size_t count_match(const std::vector<allele_t> &x, const std::vector<allele_t> &
     return c;
 }
 
-void group_snps(const Genotype &gt, std::vector<size_t> &snps, Genotype &ogt)
+size_t group_snp(const Genotype &gt, std::vector<size_t> &sidx, Genotype &ggt)
 {
     auto n = gt.ind.size();
     std::vector< std::vector<allele_t> > dat;
 
     for (size_t i = 0; i < n; ++i) {
         std::vector<allele_t> v1, v2;
-        for (auto j : snps) {
+        for (auto j : sidx) {
             if (gt.ploidy == 1) {
                 v1.push_back(gt.dat[j][i]);
             }
@@ -530,13 +530,11 @@ void group_snps(const Genotype &gt, std::vector<size_t> &snps, Genotype &ogt)
     for (auto &e : haps)
         freq.push_back( count(dat,e) );
 
-    auto ord = order(freq);
-    std::reverse(ord.begin(), ord.end());
+    auto ord = order(freq, true);
     subset(haps,ord).swap(haps);
     subset(freq,ord).swap(freq);
 
     auto maf = static_cast<size_t>(std::ceil(par.maf * n * gt.ploidy));
-
     auto na = count_if(freq, [maf](size_t a) { return a >= maf; });
 
     // TODO: use cluster analysis if na = 1
@@ -544,65 +542,64 @@ void group_snps(const Genotype &gt, std::vector<size_t> &snps, Genotype &ogt)
     if (na == 1)
         na = 2;
 
-    std::vector<size_t> hc(nhap);
-    std::iota(hc.begin(), hc.end(), 0);
+    if (na > 255)
+        na = 255;
+
+    size_t rec = 0;
+    std::vector<allele_t> codec(nhap);
+    std::iota(codec.begin(), codec.end(), allele_t(1));
+
     for (auto i = na; i < nhap; ++i) {
-        std::vector<size_t> v;
-        for (size_t j = 0; j < na; ++j) {
-            auto s = count_match(haps[i], haps[j]);
-            v.push_back(s);
-        }
-        hc[i] = index(v, * std::max_element(v.begin(), v.end()));
+        rec += freq[i];
+        std::vector<size_t> v(na);
+        for (size_t j = 0; j < na; ++j)
+            v[j] = count_match(haps[i], haps[j]);
+        auto k = index(v, * std::max_element(v.begin(), v.end()));
+        codec[i] = static_cast<allele_t>(k+1);
     }
 
-    auto start = gt.pos[snps[0]];
-    auto stop = start;
-    for (auto j : snps) {
-        auto pos = gt.pos[j];
-        if (pos < start)
-            start = pos;
-        else if (pos > stop)
-            stop = pos;
-    }
-
-    auto loc = "LDB_" + gt.chr[snps[0]] + "_" + std::to_string(start) + "_" + std::to_string(stop);
-    ogt.loc.push_back(loc);
-    ogt.chr.push_back(gt.chr[snps[0]]);
-    ogt.pos.push_back(start);
+    if (gt.ploidy == 2)
+        rec /= 2;
 
     std::vector<allele_t> v;
 
     if (gt.ploidy == 1) {
         for (size_t i = 0; i < n; ++i) {
-            auto wh = index(haps, dat[i]);
-            auto code = static_cast<allele_t>(hc[wh]+1);
-            v.push_back(code);
+            auto k = index(haps, dat[i]);
+            v.push_back(codec[k]);
         }
     }
     else {
         for (size_t i = 0; i < n; ++i) {
-            auto wh = index(haps, dat[i*2]);
-            auto code = static_cast<allele_t>(hc[wh]+1);
-            v.push_back(code);
-            wh = index(haps, dat[i*2+1]);
-            code = static_cast<allele_t>(hc[wh]+1);
-            v.push_back(code);
+            auto k = index(haps, dat[i*2]);
+            v.push_back(codec[k]);
+            k = index(haps, dat[i*2+1]);
+            v.push_back(codec[k]);
         }
     }
 
     if (na == 0)
         std::fill(v.begin(), v.end(), 0);
 
-    ogt.dat.push_back(v);
+    ggt.dat.push_back(v);
+
+    // first snp position as block position
+    int start = std::numeric_limits<int>::max();
+    for (auto j : sidx) {
+        if (gt.pos[j] < start)
+            start = gt.pos[j];
+    }
+
+    ggt.pos.push_back(start);
 
     std::vector<std::string> allele;
     for (size_t i = 0; i < na; ++i) {
         std::string si;
-        auto p = snps.size();
+        auto p = sidx.size();
         for (size_t j = 0; j < p; ++j) {
-            auto jj = snps[j];
+            auto jj = sidx[j];
             auto a = haps[i][j];
-            if (a)
+            if ( a )
                 si.append(gt.allele[jj][a-1]);
             else
                 si.push_back('N');
@@ -610,7 +607,9 @@ void group_snps(const Genotype &gt, std::vector<size_t> &snps, Genotype &ogt)
         allele.push_back(si);
     }
 
-    ogt.allele.push_back(allele);
+    ggt.allele.push_back(allele);
+
+    return rec;
 }
 
 std::vector< std::vector<size_t> > index_family(const std::vector<size_t> &fam)
@@ -628,8 +627,8 @@ std::vector< std::vector<size_t> > index_family(const std::vector<size_t> &fam)
     return idx;
 }
 
-size_t group_snps_fam(const Genotype &pgt, const Genotype &gt, const std::vector<size_t> &fam,
-                    std::vector<size_t> &snps, Genotype &pldb, Genotype &ldb)
+size_t group_snp_fam(const Genotype &pgt, const Genotype &gt, const std::vector<size_t> &fam,
+                     std::vector<size_t> &sidx, Genotype &pggt, Genotype &ggt)
 {
     auto np = fam.size() + 1;
     std::vector< std::vector<allele_t> > phap;
@@ -637,7 +636,7 @@ size_t group_snps_fam(const Genotype &pgt, const Genotype &gt, const std::vector
         // NOTE: presuming that parents are homozygous
         auto ii = gt.ploidy == 1 ? i : i*2;
         std::vector<allele_t> v;
-        for (auto j : snps)
+        for (auto j : sidx)
             v.push_back(pgt.dat[j][ii]);
         phap.push_back(v);
     }
@@ -646,14 +645,14 @@ size_t group_snps_fam(const Genotype &pgt, const Genotype &gt, const std::vector
     for (auto &e : phap)
         codec.push_back( static_cast<allele_t>( index(phap, e) + 1 ) );
 
-    pldb.dat.push_back(codec);
+    pggt.dat.push_back(codec);
 
     auto n = gt.ind.size();
     std::vector< std::vector<allele_t> > dat;
 
     for (size_t i = 0; i < n; ++i) {
         std::vector<allele_t> v1, v2;
-        for (auto j : snps) {
+        for (auto j : sidx) {
             if (gt.ploidy == 1) {
                 v1.push_back(gt.dat[j][i]);
             }
@@ -711,21 +710,16 @@ size_t group_snps_fam(const Genotype &pgt, const Genotype &gt, const std::vector
     if (gt.ploidy == 2)
         rec /= 2;
 
-    auto start = gt.pos[snps[0]];
-    auto stop = start;
-    for (auto j : snps) {
-        auto pos = gt.pos[j];
-        if (pos < start)
-            start = pos;
-        else if (pos > stop)
-            stop = pos;
+    ggt.dat.push_back(v);
+
+    // first snp position as block position
+    int start = std::numeric_limits<int>::max();
+    for (auto j : sidx) {
+        if (gt.pos[j] < start)
+            start = gt.pos[j];
     }
 
-    auto loc = "LDB_" + gt.chr[snps[0]] + "_" + std::to_string(start) + "_" + std::to_string(stop);
-    ldb.loc.push_back(loc);
-    ldb.chr.push_back(gt.chr[snps[0]]);
-    ldb.pos.push_back(start);
-    ldb.dat.push_back(v);
+    ggt.pos.push_back(start);
 
     auto na = * std::max_element(codec.begin(), codec.end());
 
@@ -733,10 +727,10 @@ size_t group_snps_fam(const Genotype &pgt, const Genotype &gt, const std::vector
     for (size_t k = 0; k < na; ++k) {
         auto i = index(codec, k+1);
         std::string si;
-        auto p = snps.size();
+        auto p = sidx.size();
         for (size_t j = 0; j < p; ++j) {
             auto a = phap[i][j];
-            auto jj = snps[j];
+            auto jj = sidx[j];
             if ( a )
                 si.append(gt.allele[jj][a-1]);
             else
@@ -745,28 +739,39 @@ size_t group_snps_fam(const Genotype &pgt, const Genotype &gt, const std::vector
         allele.push_back(si);
     }
 
-    ldb.allele.push_back(allele);
+    ggt.allele.push_back(allele);
 
     return rec;
 }
 
-void recode_save_allele(Genotype &gt)
+void recode_block_allele(std::vector< std::vector<std::string> > &allele)
+{
+    for (auto &v : allele) {
+        if (v.empty() || v[0].size() < 2)
+            continue;
+        auto n = v.size();
+        for (size_t i = 0; i < n; ++i)
+            v[i] = std::to_string(i);
+    }
+}
+
+void write_block_allele(const Genotype &gt, const std::vector< std::vector<std::string> > &allele)
 {
     std::ofstream ofs(par.out + ".allele");
 
-    if ( ofs )
-        ofs << "Locus\tCode\tAllele\n";
-    else
+    if ( ! ofs ) {
         std::cerr << "ERROR: can't open file for writing: " << par.out << ".allele\n";
+        return;
+    }
 
     auto m = gt.loc.size();
-    for (size_t i = 0; i < m; ++i) {
-        auto n = gt.allele[i].size();
-        for (size_t j = 0; j < n; ++j) {
-            if ( ofs )
-                ofs << gt.loc[i] << "\t" << j << "\t" << gt.allele[i][j] << "\n";
-            gt.allele[i][j] = std::to_string(j);
-        }
+
+    ofs << "Locus\tCode\tAllele\n";
+
+    for (size_t j = 0; j < m; ++j) {
+        auto n = gt.allele[j].size();
+        for (size_t k = 0; k < n; ++k)
+            ofs << gt.loc[j] << "\t" << allele[j][k] << "\t" << gt.allele[j][k] << "\n";
     }
 }
 
@@ -832,7 +837,7 @@ int rtm_gwas_snpldb_fam()
 
     auto chrid = stable_unique(gt.chr);
     auto nchr = chrid.size();
-    auto snps = index_snps(gt, chrid);
+    auto snps = index_snp(gt, chrid);
 
     if ( blk_chr.empty() ) {
         for (size_t i = 0; i < nchr; ++i) {
@@ -851,8 +856,8 @@ int rtm_gwas_snpldb_fam()
     auto m = gt.loc.size();
     auto nb = blk_chr.size();
 
-    Genotype ldb;
-    Genotype pldb;
+    Genotype bgt;
+    Genotype pbgt;
     std::vector<char> inblock(m,0);
 
     std::vector<int> blk_length(nb,0);
@@ -860,8 +865,8 @@ int rtm_gwas_snpldb_fam()
     std::vector<size_t> blk_rec(nb,0);
 
     for (size_t i = 0; i < nchr; ++i) {
-        Genotype pldbchr;
-        Genotype ldbchr;
+        Genotype ggt;
+        Genotype pggt;
 
         for (size_t k = 0; k < nb; ++k) {
             if (blk_chr[k] != chrid[i])
@@ -880,28 +885,41 @@ int rtm_gwas_snpldb_fam()
                           << blk_pos1[k] << " " << blk_pos2[k] << "\n";
                 continue;
             }
-            blk_rec[k] = group_snps_fam(pgt, gt, fam, idx, pldbchr, ldbchr);
+
+            blk_rec[k] = group_snp_fam(pgt, gt, fam, idx, pggt, ggt);
+
+            // block-info-based locus name
+            std::string loc = "LDB_";
+            loc += blk_chr[k];
+            loc += "_";
+            loc += std::to_string(blk_pos1[k]);
+            loc += "_";
+            loc += std::to_string(blk_pos2[k]);
+
+            ggt.loc.push_back(loc);
+            ggt.chr.push_back(chrid[i]);
         }
 
         for (auto j : snps[i]) {
             if ( inblock[j] ) {
-                auto k = index(ldbchr.pos, gt.pos[j]);
-                if (k != ldbchr.pos.size()) {
-                    ldb.loc.push_back(ldbchr.loc[k]);
-                    ldb.chr.push_back(ldbchr.chr[k]);
-                    ldb.pos.push_back(ldbchr.pos[k]);
-                    ldb.dat.push_back(ldbchr.dat[k]);
-                    ldb.allele.push_back(ldbchr.allele[k]);
-                    pldb.dat.push_back(pldbchr.dat[k]);
+                auto k = index(ggt.pos, gt.pos[j]);
+                if (k != ggt.pos.size()) {
+                    bgt.loc.push_back(ggt.loc[k]);
+                    bgt.chr.push_back(ggt.chr[k]);
+                    bgt.pos.push_back(ggt.pos[k]);
+                    bgt.dat.push_back(ggt.dat[k]);
+                    bgt.allele.push_back(ggt.allele[k]);
+                    pbgt.dat.push_back(pggt.dat[k]);
                 }
             }
             else {
-                ldb.loc.push_back("LDB_" + gt.loc[j]);
-                ldb.chr.push_back(gt.chr[j]);
-                ldb.pos.push_back(gt.pos[j]);
-                ldb.dat.push_back(gt.dat[j]);
-                ldb.allele.push_back(gt.allele[j]);
-                pldb.dat.push_back(pgt.dat[j]);
+                std::string loc = "LDB_" + gt.chr[j] + "_" + std::to_string(gt.pos[j]);
+                bgt.loc.push_back(loc);
+                bgt.chr.push_back(gt.chr[j]);
+                bgt.pos.push_back(gt.pos[j]);
+                bgt.dat.push_back(gt.dat[j]);
+                bgt.allele.push_back(gt.allele[j]);
+                pbgt.dat.push_back(pgt.dat[j]);
             }
         }
     }
@@ -917,18 +935,23 @@ int rtm_gwas_snpldb_fam()
                 << blk_length[i] << "\t" << blk_size[i] << "\t" << blk_rec[i] << "\n";
     }
 
-    ldb.ind = gt.ind;
-    ldb.ploidy = gt.ploidy;
+    bgt.ind = gt.ind;
+    bgt.ploidy = gt.ploidy;
 
-    recode_save_allele(ldb);
+    auto allele = bgt.allele;
+    recode_block_allele(allele);
+    write_block_allele(bgt, allele);
 
-    if (write_vcf(ldb, par.out + ".vcf") != 0)
+    bgt.allele.swap(allele);
+
+    if (write_vcf(bgt, par.out + ".vcf") != 0)
         return 3;
 
-    ldb.ind = pgt.ind;
-    ldb.dat = pldb.dat;
+    bgt.ploidy = 1;
+    bgt.ind = pgt.ind;
+    bgt.dat = pbgt.dat;
 
-    if (write_vcf(ldb, par.out + ".par.vcf") != 0)
+    if (write_vcf(bgt, par.out + ".parent.vcf") != 0)
         return 4;
 
     return 0;
@@ -1007,13 +1030,13 @@ int rtm_gwas_snpldb(int argc, char *argv[])
 
     auto chrid = stable_unique(gt.chr);
     auto nchr = chrid.size();
-    auto snps = index_snps(gt, chrid);
+    auto sidx = index_snp(gt, chrid);
 
     if ( blk_chr.empty() ) {
         for (size_t i = 0; i < nchr; ++i) {
             std::cerr << "INFO: finding blocks on chromosome " << chrid[i] << "\n";
             std::vector< std::pair<int,int> > ppos;
-            if (find_block_Gabriel(gt, snps[i], ppos) != 0)
+            if (find_block_Gabriel(gt, sidx[i], ppos) != 0)
                 return 1;
             blk_chr.insert(blk_chr.end(), ppos.size(), chrid[i]);
             for (auto &e : ppos) {
@@ -1026,51 +1049,70 @@ int rtm_gwas_snpldb(int argc, char *argv[])
     auto m = gt.loc.size();
     auto nb = blk_chr.size();
 
-    Genotype ldb;
+    Genotype bgt;
     std::vector<char> inblock(m,0);
 
     std::vector<int> blk_length(nb,0);
     std::vector<size_t> blk_size(nb,0);
+    std::vector<size_t> blk_rec(nb,0);
 
     for (size_t i = 0; i < nchr; ++i) {
-        Genotype gtchr;
+        Genotype ggt;
+
         for (size_t k = 0; k < nb; ++k) {
             if (blk_chr[k] != chrid[i])
                 continue;
+
             std::vector<size_t> idx;
-            for (auto j : snps[i]) {
+            for (auto j : sidx[i]) {
                 if (gt.pos[j] < blk_pos1[k] || gt.pos[j] > blk_pos2[k])
                     continue;
                 inblock[j] = true;
                 idx.push_back(j);
             }
+
             blk_length[k] = blk_pos2[k] - blk_pos1[k];
             blk_size[k] = idx.size();
+
             if ( idx.empty() ) {
                 std::cerr << "WARNING: no SNPs were found in block: " << chrid[i] << " "
                           << blk_pos1[k] << " " << blk_pos2[k] << "\n";
                 continue;
             }
-            group_snps(gt, idx, gtchr);
+
+            blk_rec[k] = group_snp(gt, idx, ggt);
+
+            // block-info-based locus name
+            std::string loc = "LDB_";
+            loc += blk_chr[k];
+            loc += "_";
+            loc += std::to_string(blk_pos1[k]);
+            loc += "_";
+            loc += std::to_string(blk_pos2[k]);
+
+            ggt.loc.push_back(loc);
+            ggt.chr.push_back(chrid[i]);
         }
 
-        for (auto j : snps[i]) {
+        for (auto j : sidx[i]) {
             if ( inblock[j] ) {
-                auto k = index(gtchr.pos, gt.pos[j]);
-                if (k != gtchr.pos.size()) {
-                    ldb.loc.push_back(gtchr.loc[k]);
-                    ldb.chr.push_back(gtchr.chr[k]);
-                    ldb.pos.push_back(gtchr.pos[k]);
-                    ldb.dat.push_back(gtchr.dat[k]);
-                    ldb.allele.push_back(gtchr.allele[k]);
+                auto k = index(ggt.pos, gt.pos[j]);
+                if (k != ggt.pos.size()) {
+                    bgt.loc.push_back(ggt.loc[k]);
+                    bgt.chr.push_back(ggt.chr[k]);
+                    bgt.pos.push_back(ggt.pos[k]);
+                    bgt.dat.push_back(ggt.dat[k]);
+                    bgt.allele.push_back(ggt.allele[k]);
                 }
             }
             else {
-                ldb.loc.push_back("LDB_" + gt.loc[j]);
-                ldb.chr.push_back(gt.chr[j]);
-                ldb.pos.push_back(gt.pos[j]);
-                ldb.dat.push_back(gt.dat[j]);
-                ldb.allele.push_back(gt.allele[j]);
+                // unified locus name
+                std::string loc = "LDB_" + gt.chr[j] + "_" + std::to_string(gt.pos[j]);
+                bgt.loc.push_back(loc);
+                bgt.chr.push_back(gt.chr[j]);
+                bgt.pos.push_back(gt.pos[j]);
+                bgt.dat.push_back(gt.dat[j]);
+                bgt.allele.push_back(gt.allele[j]);
             }
         }
     }
@@ -1080,18 +1122,22 @@ int rtm_gwas_snpldb(int argc, char *argv[])
     if ( ! ofs )
         std::cerr << "ERROR: can't open file for writing: " << par.out << ".block\n";
     else {
-        ofs << "Chromosome\tStart\tStop\tLength\tSNPs\n";
+        ofs << "Chromosome\tStart\tStop\tLength\tSNPs\tRecomb\n";
         for (size_t i = 0; i < nb; ++i)
             ofs << blk_chr[i] << "\t" << blk_pos1[i] << "\t" << blk_pos2[i] << "\t"
-                << blk_length[i] << "\t" << blk_size[i] << "\n";
+                << blk_length[i] << "\t" << blk_size[i] << "\t" << blk_rec[i] << "\n";
     }
 
-    ldb.ind = gt.ind;
-    ldb.ploidy = gt.ploidy;
+    bgt.ind = gt.ind;
+    bgt.ploidy = gt.ploidy;
 
-    recode_save_allele(ldb);
+    auto allele = bgt.allele;
+    recode_block_allele(allele);
+    write_block_allele(bgt, allele);
 
-    if (write_vcf(ldb, par.out + ".vcf") != 0)
+    bgt.allele.swap(allele);
+
+    if (write_vcf(bgt, par.out + ".vcf") != 0)
         return 3;
 
     return 0;
