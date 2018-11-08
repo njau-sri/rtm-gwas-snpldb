@@ -502,7 +502,7 @@ size_t count_match(const std::vector<allele_t> &x, const std::vector<allele_t> &
     return c;
 }
 
-size_t group_snp(const Genotype &gt, std::vector<size_t> &sidx, Genotype &ggt)
+size_t group_snp(const Genotype &gt, const std::vector<size_t> &sidx, Genotype &ggt)
 {
     auto n = gt.ind.size();
     std::vector< std::vector<allele_t> > dat;
@@ -627,8 +627,9 @@ std::vector< std::vector<size_t> > index_family(const std::vector<size_t> &fam)
     return idx;
 }
 
-size_t group_snp_fam(const Genotype &pgt, const Genotype &gt, const std::vector<size_t> &fam,
-                     std::vector<size_t> &sidx, Genotype &pggt, Genotype &ggt)
+size_t group_snp_fam(const Genotype &gt, const std::vector<size_t> &sidx,
+                     const Genotype &pgt, const std::vector< std::vector<size_t> > &fam,
+                     Genotype &ggt, Genotype &pggt)
 {
     auto np = fam.size() + 1;
     std::vector< std::vector<allele_t> > phap;
@@ -642,8 +643,13 @@ size_t group_snp_fam(const Genotype &pgt, const Genotype &gt, const std::vector<
     }
 
     std::vector<allele_t> codec;
-    for (auto &e : phap)
-        codec.push_back( static_cast<allele_t>( index(phap, e) + 1 ) );
+    for (auto &e : phap) {
+        auto a = static_cast<allele_t>( index(phap, e) + 1 );
+        if ( codec.empty() || std::find(codec.begin(), codec.end(), a) != codec.end() )
+            codec.push_back(a);
+        else
+            codec.push_back(* std::max_element(codec.begin(), codec.end()) + 1);
+    }
 
     pggt.dat.push_back(codec);
 
@@ -666,15 +672,13 @@ size_t group_snp_fam(const Genotype &pgt, const Genotype &gt, const std::vector<
             dat.push_back(v2);
     }
 
-    auto fidx = index_family(fam);
-
     size_t rec = 0;
     std::vector<allele_t> v;
 
     auto& p1hap = phap[0];
     for (size_t j = 1; j < np; ++j) {
         auto& p2hap = phap[j];
-        for (auto i : fidx[j-1]) {
+        for (auto i : fam[j-1]) {
             auto i1 = gt.ploidy == 1 ? i : i*2;
             allele_t a1 = 0;
             if (dat[i1] == p1hap)
@@ -781,7 +785,7 @@ int rtm_gwas_snpldb_fam()
 {
     size_t tfam = 0;
     std::vector<size_t> fam;
-    for (auto &e : split(par.fam,",")) {
+    for (auto &e : split(par.fam," \t,")) {
         auto a = std::stoi(e);
         if (a < 1) {
             std::cerr << "ERROR: invalid family size: " << e << "\n";
@@ -817,6 +821,8 @@ int rtm_gwas_snpldb_fam()
         std::cerr << "ERROR: inconsistent number of individuals: " << gt.ind.size() << " " << tfam + np << "\n";
         return 1;
     }
+
+    auto fidx = index_family(fam);
 
     Genotype pgt;
 
@@ -871,22 +877,22 @@ int rtm_gwas_snpldb_fam()
         for (size_t k = 0; k < nb; ++k) {
             if (blk_chr[k] != chrid[i])
                 continue;
-            std::vector<size_t> idx;
+            std::vector<size_t> jidx;
             for (auto j : snps[i]) {
                 if (gt.pos[j] < blk_pos1[k] || gt.pos[j] > blk_pos2[k])
                     continue;
                 inblock[j] = true;
-                idx.push_back(j);
+                jidx.push_back(j);
             }
             blk_length[k] = blk_pos2[k] - blk_pos1[k];
-            blk_size[k] = idx.size();
-            if ( idx.empty() ) {
+            blk_size[k] = jidx.size();
+            if ( jidx.empty() ) {
                 std::cerr << "WARNING: no SNPs were found in block: " << chrid[i] << " "
                           << blk_pos1[k] << " " << blk_pos2[k] << "\n";
                 continue;
             }
 
-            blk_rec[k] = group_snp_fam(pgt, gt, fam, idx, pggt, ggt);
+            blk_rec[k] = group_snp_fam(gt, jidx, pgt, fidx, ggt, pggt);
 
             // block-info-based locus name
             std::string loc = "LDB_";
@@ -913,6 +919,7 @@ int rtm_gwas_snpldb_fam()
                 }
             }
             else {
+                // unified locus name
                 std::string loc = "LDB_" + gt.chr[j] + "_" + std::to_string(gt.pos[j]);
                 bgt.loc.push_back(loc);
                 bgt.chr.push_back(gt.chr[j]);
@@ -1063,24 +1070,24 @@ int rtm_gwas_snpldb(int argc, char *argv[])
             if (blk_chr[k] != chrid[i])
                 continue;
 
-            std::vector<size_t> idx;
+            std::vector<size_t> jidx;
             for (auto j : sidx[i]) {
                 if (gt.pos[j] < blk_pos1[k] || gt.pos[j] > blk_pos2[k])
                     continue;
                 inblock[j] = true;
-                idx.push_back(j);
+                jidx.push_back(j);
             }
 
             blk_length[k] = blk_pos2[k] - blk_pos1[k];
-            blk_size[k] = idx.size();
+            blk_size[k] = jidx.size();
 
-            if ( idx.empty() ) {
+            if ( jidx.empty() ) {
                 std::cerr << "WARNING: no SNPs were found in block: " << chrid[i] << " "
                           << blk_pos1[k] << " " << blk_pos2[k] << "\n";
                 continue;
             }
 
-            blk_rec[k] = group_snp(gt, idx, ggt);
+            blk_rec[k] = group_snp(gt, jidx, ggt);
 
             // block-info-based locus name
             std::string loc = "LDB_";
