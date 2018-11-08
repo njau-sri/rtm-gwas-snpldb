@@ -634,11 +634,9 @@ size_t group_snp_fam(const Genotype &gt, const std::vector<size_t> &sidx,
     auto np = fam.size() + 1;
     std::vector< std::vector<allele_t> > phap;
     for (size_t i = 0; i < np; ++i) {
-        // NOTE: presuming that parents are homozygous
-        auto ii = gt.ploidy == 1 ? i : i*2;
         std::vector<allele_t> v;
         for (auto j : sidx)
-            v.push_back(pgt.dat[j][ii]);
+            v.push_back(pgt.dat[j][i]);
         phap.push_back(v);
     }
 
@@ -830,9 +828,21 @@ int rtm_gwas_snpldb_fam()
     gt.ind.erase(gt.ind.begin(), gt.ind.begin() + np);
 
     for (auto &v : gt.dat) {
-        auto end = v.begin() + np * gt.ploidy;
-        pgt.dat.emplace_back(v.begin(), end);
-        v.erase(v.begin(), end);
+        if (gt.ploidy == 2) {
+            // NOTE: presuming that parents are homozygous
+            std::vector<allele_t> w(np);
+            for (size_t i = 0; i < np; ++i) {
+                if (v[i*2] != v[i*2+1]) {
+                    std::cerr << "ERROR: parent genotype is not homozygous\n";
+                    return 1;
+                }
+                w[i] = v[i*2];
+            }
+            pgt.dat.push_back(w);
+        }
+        else
+            pgt.dat.emplace_back(v.begin(), v.begin() + np);
+        v.erase(v.begin(), v.begin() + gt.ploidy * np);
     }
 
     std::vector<std::string> blk_chr;
