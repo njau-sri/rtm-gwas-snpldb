@@ -632,22 +632,19 @@ size_t group_snp_fam(const Genotype &gt, const std::vector<size_t> &sidx,
                      Genotype &ggt, Genotype &pggt)
 {
     auto np = fam.size() + 1;
-    std::vector< std::vector<allele_t> > phap;
+    std::vector< std::vector<allele_t> > pdat;
     for (size_t i = 0; i < np; ++i) {
         std::vector<allele_t> v;
         for (auto j : sidx)
             v.push_back(pgt.dat[j][i]);
-        phap.push_back(v);
+        pdat.push_back(v);
     }
 
+    auto phap = stable_unique(pdat);
+
     std::vector<allele_t> codec;
-    for (auto &e : phap) {
-        auto a = static_cast<allele_t>( index(phap, e) + 1 );
-        if ( codec.empty() || std::find(codec.begin(), codec.end(), a) != codec.end() )
-            codec.push_back(a);
-        else
-            codec.push_back(* std::max_element(codec.begin(), codec.end()) + 1);
-    }
+    for (auto &e : pdat)
+        codec.push_back( static_cast<allele_t>( index(phap, e) + 1 ) );
 
     pggt.dat.push_back(codec);
 
@@ -673,9 +670,9 @@ size_t group_snp_fam(const Genotype &gt, const std::vector<size_t> &sidx,
     size_t rec = 0;
     std::vector<allele_t> v;
 
-    auto& p1hap = phap[0];
+    auto& p1hap = pdat[0];
     for (size_t j = 1; j < np; ++j) {
-        auto& p2hap = phap[j];
+        auto& p2hap = pdat[j];
         for (auto i : fam[j-1]) {
             auto i1 = gt.ploidy == 1 ? i : i*2;
             allele_t a1 = 0;
@@ -731,7 +728,7 @@ size_t group_snp_fam(const Genotype &gt, const std::vector<size_t> &sidx,
         std::string si;
         auto p = sidx.size();
         for (size_t j = 0; j < p; ++j) {
-            auto a = phap[i][j];
+            auto a = pdat[i][j];
             auto jj = sidx[j];
             if ( a )
                 si.append(gt.allele[jj][a-1]);
