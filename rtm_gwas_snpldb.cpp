@@ -1,5 +1,6 @@
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -20,7 +21,7 @@ struct Parameter
     std::string vcf;
     std::string blk;
     std::string out;
-    std::string nam;
+    std::string fam;
     double maf = 0.01;
     double inform = 0.95;
     int maxlen = 200000;
@@ -28,7 +29,6 @@ struct Parameter
     int ulim = 98;
     int recomb = 90;
     int batch = 20000;
-    bool ril = false;
 } par ;
 
 
@@ -613,6 +613,143 @@ void group_snps(const Genotype &gt, std::vector<size_t> &snps, Genotype &ogt)
     ogt.allele.push_back(allele);
 }
 
+std::vector< std::vector<size_t> > index_family(const std::vector<size_t> &fam)
+{
+    std::vector< std::vector<size_t> > idx;
+
+    size_t start = 0;
+    for (auto n : fam) {
+        std::vector<size_t> v(n);
+        std::iota(v.begin(), v.end(), start);
+        idx.push_back(v);
+        start += n;
+    }
+
+    return idx;
+}
+
+size_t group_snps_fam(const Genotype &pgt, const Genotype &gt, const std::vector<size_t> &fam,
+                    std::vector<size_t> &snps, Genotype &pldb, Genotype &ldb)
+{
+    auto np = fam.size() + 1;
+    std::vector< std::vector<allele_t> > phap;
+    for (size_t i = 0; i < np; ++i) {
+        // NOTE: presuming that parents are homozygous
+        auto ii = gt.ploidy == 1 ? i : i*2;
+        std::vector<allele_t> v;
+        for (auto j : snps)
+            v.push_back(pgt.dat[j][ii]);
+        phap.push_back(v);
+    }
+
+    std::vector<allele_t> codec;
+    for (auto &e : phap)
+        codec.push_back( static_cast<allele_t>( index(phap, e) + 1 ) );
+
+    pldb.dat.push_back(codec);
+
+    auto n = gt.ind.size();
+    std::vector< std::vector<allele_t> > dat;
+
+    for (size_t i = 0; i < n; ++i) {
+        std::vector<allele_t> v1, v2;
+        for (auto j : snps) {
+            if (gt.ploidy == 1) {
+                v1.push_back(gt.dat[j][i]);
+            }
+            else {
+                v1.push_back(gt.dat[j][i*2]);
+                v2.push_back(gt.dat[j][i*2+1]);
+            }
+        }
+        dat.push_back(v1);
+        if ( ! v2.empty() )
+            dat.push_back(v2);
+    }
+
+    auto fidx = index_family(fam);
+
+    size_t rec = 0;
+    std::vector<allele_t> v;
+
+    auto& p1hap = phap[0];
+    for (size_t j = 1; j < np; ++j) {
+        auto& p2hap = phap[j];
+        for (auto i : fidx[j-1]) {
+            auto i1 = gt.ploidy == 1 ? i : i*2;
+            allele_t a1 = 0;
+            if (dat[i1] == p1hap)
+                a1 = codec[0];
+            else if (dat[i1] == p2hap)
+                a1 = codec[j];
+            else {
+                ++rec;
+                auto s1 = count_match(dat[i1], p1hap);
+                auto s2 = count_match(dat[i1], p2hap);
+                a1 = s1 >= s2 ? codec[0] : codec[j];
+            }
+            v.push_back(a1);
+
+            if (gt.ploidy == 2) {
+                auto i2 = i1 + 1;
+                allele_t a2 = 0;
+                if (dat[i2] == p1hap)
+                    a2 = codec[0];
+                else if (dat[i2] == p2hap)
+                    a2 = codec[j];
+                else {
+                    ++rec;
+                    auto s1 = count_match(dat[i2], p1hap);
+                    auto s2 = count_match(dat[i2], p2hap);
+                    a2 = s1 >= s2 ? codec[0] : codec[j];
+                }
+                v.push_back(a2);
+            }
+        }
+    }
+
+    if (gt.ploidy == 2)
+        rec /= 2;
+
+    auto start = gt.pos[snps[0]];
+    auto stop = start;
+    for (auto j : snps) {
+        auto pos = gt.pos[j];
+        if (pos < start)
+            start = pos;
+        else if (pos > stop)
+            stop = pos;
+    }
+
+    auto loc = "LDB_" + gt.chr[snps[0]] + "_" + std::to_string(start) + "_" + std::to_string(stop);
+    ldb.loc.push_back(loc);
+    ldb.chr.push_back(gt.chr[snps[0]]);
+    ldb.pos.push_back(start);
+    ldb.dat.push_back(v);
+
+    auto na = * std::max_element(codec.begin(), codec.end());
+
+    std::vector<std::string> allele;
+    for (size_t k = 0; k < na; ++k) {
+        auto i = index(codec, k+1);
+        std::string si;
+        auto p = snps.size();
+        for (size_t j = 0; j < p; ++j) {
+            auto a = phap[i][j];
+            auto jj = snps[j];
+            if ( a )
+                si.append(gt.allele[jj][a-1]);
+            else
+                si.push_back('N');
+        }
+        allele.push_back(si);
+    }
+
+    ldb.allele.push_back(allele);
+
+    return rec;
+}
+
 void recode_save_allele(Genotype &gt)
 {
     std::ofstream ofs(par.out + ".allele");
@@ -633,37 +770,168 @@ void recode_save_allele(Genotype &gt)
     }
 }
 
-// RIL population
-// layout: p1 p2 ind1 ind2 ...
-int rtm_gwas_snpldb_ril()
+// RIL layout: p1 p2 ind1 ind2 ...
+// NAM layout: cp p1 p2 p3 f1-ind1 f1-ind2 ... f2-ind1 f2-ind2 ... f3-ind1 f3-ind2 ...
+int rtm_gwas_snpldb_fam()
 {
-    std::cerr << "ERROR: RIL function is not implemented\n";
-
-    return 1;
-}
-
-// NAM population
-// layout: cp p1 p2 p3 f1-ind1 f1-ind2 ... f2-ind1 f2-ind2 ... f3-ind1 f3-ind2 ...
-int rtm_gwas_snpldb_nam()
-{
-    std::vector<std::string> vs;
-    split(par.nam, ",", vs);
-
-    std::cerr << "INFO: " << vs.size() << " families in NAM population\n";
-
-    std::vector<size_t> vn;
-    for (auto &e : vs) {
+    size_t tfam = 0;
+    std::vector<size_t> fam;
+    for (auto &e : split(par.fam,",")) {
         auto a = std::stoi(e);
         if (a < 1) {
-            std::cerr << "ERROR: invalid family size of NAM population: " << e << "\n";
+            std::cerr << "ERROR: invalid family size: " << e << "\n";
             return 1;
         }
-        vn.push_back( static_cast<size_t>(a) );
+        fam.push_back( static_cast<size_t>(a) );
+        tfam += fam.back();
     }
 
-    std::cerr << "ERROR: NAM function is not implemented\n";
+    if ( fam.empty() ) {
+        std::cerr << "ERROR: invalid arguments for --fam: " << par.fam << "\n";
+        return 1;
+    }
 
-    return 1;
+    std::cerr << "INFO: " << fam.size() << " " << (fam.size() <= 1 ? "family was" : "families were")
+              << " observed in the population\n";
+
+    Genotype gt;
+
+    std::cerr << "INFO: reading genotype file...\n";
+    if (read_vcf(par.vcf, gt) != 0)
+        return 1;
+    std::cerr << "INFO: " << gt.ind.size() << " individuals, " << gt.loc.size() << " loci\n";
+
+    if (gt.ploidy != 1 && gt.ploidy != 2) {
+        std::cerr << "ERROR: unsupported genotype ploidy: " << gt.ploidy << "\n";
+        return 1;
+    }
+
+    size_t np = fam.size() + 1;
+
+    if (gt.ind.size() != tfam + np) {
+        std::cerr << "ERROR: inconsistent number of individuals: " << gt.ind.size() << " " << tfam + np << "\n";
+        return 1;
+    }
+
+    Genotype pgt;
+
+    pgt.ind.assign(gt.ind.begin(), gt.ind.begin() + np);
+    gt.ind.erase(gt.ind.begin(), gt.ind.begin() + np);
+
+    for (auto &v : gt.dat) {
+        auto end = v.begin() + np * gt.ploidy;
+        pgt.dat.emplace_back(v.begin(), end);
+        v.erase(v.begin(), end);
+    }
+
+    std::vector<std::string> blk_chr;
+    std::vector<int> blk_pos1, blk_pos2;
+
+    if ( ! par.blk.empty() )
+        read_block(par.blk, blk_chr, blk_pos1, blk_pos2);
+
+    auto chrid = stable_unique(gt.chr);
+    auto nchr = chrid.size();
+    auto snps = index_snps(gt, chrid);
+
+    if ( blk_chr.empty() ) {
+        for (size_t i = 0; i < nchr; ++i) {
+            std::cerr << "INFO: finding blocks on chromosome " << chrid[i] << "\n";
+            std::vector< std::pair<int,int> > ppos;
+            if (find_block_Gabriel(gt, snps[i], ppos) != 0)
+                return 1;
+            blk_chr.insert(blk_chr.end(), ppos.size(), chrid[i]);
+            for (auto &e : ppos) {
+                blk_pos1.push_back(e.first);
+                blk_pos2.push_back(e.second);
+            }
+        }
+    }
+
+    auto m = gt.loc.size();
+    auto nb = blk_chr.size();
+
+    Genotype ldb;
+    Genotype pldb;
+    std::vector<char> inblock(m,0);
+
+    std::vector<int> blk_length(nb,0);
+    std::vector<size_t> blk_size(nb,0);
+    std::vector<size_t> blk_rec(nb,0);
+
+    for (size_t i = 0; i < nchr; ++i) {
+        Genotype pldbchr;
+        Genotype ldbchr;
+
+        for (size_t k = 0; k < nb; ++k) {
+            if (blk_chr[k] != chrid[i])
+                continue;
+            std::vector<size_t> idx;
+            for (auto j : snps[i]) {
+                if (gt.pos[j] < blk_pos1[k] || gt.pos[j] > blk_pos2[k])
+                    continue;
+                inblock[j] = true;
+                idx.push_back(j);
+            }
+            blk_length[k] = blk_pos2[k] - blk_pos1[k];
+            blk_size[k] = idx.size();
+            if ( idx.empty() ) {
+                std::cerr << "WARNING: no SNPs were found in block: " << chrid[i] << " "
+                          << blk_pos1[k] << " " << blk_pos2[k] << "\n";
+                continue;
+            }
+            blk_rec[k] = group_snps_fam(pgt, gt, fam, idx, pldbchr, ldbchr);
+        }
+
+        for (auto j : snps[i]) {
+            if ( inblock[j] ) {
+                auto k = index(ldbchr.pos, gt.pos[j]);
+                if (k != ldbchr.pos.size()) {
+                    ldb.loc.push_back(ldbchr.loc[k]);
+                    ldb.chr.push_back(ldbchr.chr[k]);
+                    ldb.pos.push_back(ldbchr.pos[k]);
+                    ldb.dat.push_back(ldbchr.dat[k]);
+                    ldb.allele.push_back(ldbchr.allele[k]);
+                    pldb.dat.push_back(pldbchr.dat[k]);
+                }
+            }
+            else {
+                ldb.loc.push_back("LDB_" + gt.loc[j]);
+                ldb.chr.push_back(gt.chr[j]);
+                ldb.pos.push_back(gt.pos[j]);
+                ldb.dat.push_back(gt.dat[j]);
+                ldb.allele.push_back(gt.allele[j]);
+                pldb.dat.push_back(pgt.dat[j]);
+            }
+        }
+    }
+
+    std::ofstream ofs(par.out + ".block");
+
+    if ( ! ofs )
+        std::cerr << "ERROR: can't open file for writing: " << par.out << ".block\n";
+    else {
+        ofs << "Chromosome\tStart\tStop\tLength\tSNPs\tRecomb\n";
+        for (size_t i = 0; i < nb; ++i)
+            ofs << blk_chr[i] << "\t" << blk_pos1[i] << "\t" << blk_pos2[i] << "\t"
+                << blk_length[i] << "\t" << blk_size[i] << "\t" << blk_rec[i] << "\n";
+    }
+
+    ldb.ind = gt.ind;
+    ldb.ploidy = gt.ploidy;
+
+    recode_save_allele(ldb);
+
+    if (write_vcf(ldb, par.out + ".vcf") != 0)
+        return 3;
+
+    ldb.ind = pgt.ind;
+    ldb.dat = pldb.dat;
+
+    if (write_vcf(ldb, par.out + ".par.vcf") != 0)
+        return 4;
+
+    return 0;
 }
 
 
@@ -672,7 +940,7 @@ int rtm_gwas_snpldb_nam()
 
 int rtm_gwas_snpldb(int argc, char *argv[])
 {
-    std::cerr << "RTM-GWAS v1.5 SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
+    std::cerr << "RTM-GWAS v1.6.dev SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
 
     CmdLine cmd;
 
@@ -689,8 +957,7 @@ int rtm_gwas_snpldb(int argc, char *argv[])
 
     cmd.add("--batch", "number of SNPs in a batch", "10000");
 
-    cmd.add("--nam", "nested association mapping population, n1 n2 n3 ...", "");
-    cmd.add("--ril", "recombinant inbred line population");
+    cmd.add("--fam", "family size in RIL/NAM population, n1 n2 n3 ...", "");
 
     cmd.parse(argc, argv);
 
@@ -715,14 +982,10 @@ int rtm_gwas_snpldb(int argc, char *argv[])
     if (par.batch < 0)
         par.batch = 10000;
 
-    par.nam = cmd.get("--nam");
-    par.ril = cmd.has("--ril");
+    par.fam = cmd.get("--fam");
 
-    if ( par.ril )
-        return rtm_gwas_snpldb_ril();
-
-    if ( ! par.nam.empty() )
-        return  rtm_gwas_snpldb_nam();
+    if ( ! par.fam.empty() )
+        return rtm_gwas_snpldb_fam();
 
     Genotype gt;
 
@@ -730,6 +993,11 @@ int rtm_gwas_snpldb(int argc, char *argv[])
     if (read_vcf(par.vcf, gt) != 0)
         return 1;
     std::cerr << "INFO: " << gt.ind.size() << " individuals, " << gt.loc.size() << " loci\n";
+
+    if (gt.ploidy != 1 && gt.ploidy != 2) {
+        std::cerr << "ERROR: unsupported genotype ploidy: " << gt.ploidy << "\n";
+        return 1;
+    }
 
     std::vector<std::string> blk_chr;
     std::vector<int> blk_pos1, blk_pos2;

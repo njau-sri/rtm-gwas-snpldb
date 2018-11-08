@@ -14,6 +14,8 @@ bool starts_with(const std::string &s1, const std::string &s2);
 
 bool ends_with(const std::string &s1, const std::string &s2);
 
+std::vector<std::string> split(const std::string &str, const std::string &sep);
+
 std::string join(const std::vector<std::string> &vs, const std::string &sep);
 
 
