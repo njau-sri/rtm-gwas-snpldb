@@ -3,7 +3,7 @@
 rm -rf $1
 mkdir $1
 
-if [ $1 == "lnx64" ]; then
+if [ $1 == "glnx64" ]; then
 
     g++ *.cpp -o $1/rtm-gwas-snpldb -s -O2 -std=c++11 -static
 
