@@ -683,8 +683,6 @@ int find_block(const BlockGabriel &par, const std::vector<int> &pos, const std::
     auto cmp = [&](const BlockInfo &a, const BlockInfo &b) {
         if (a.length != b.length)
             return a.length > b.length;
-        if (a.last < b.first || b.last < a.first)
-            return a.first < b.first;
         if (a.finfo != b.finfo)
             return a.finfo > b.finfo;
         if (a.llim != b.llim)
@@ -736,8 +734,6 @@ int find_block_omp(const BlockGabriel &par, const std::vector<int> &pos, const s
     auto cmp = [&](const BlockInfo &a, const BlockInfo &b) {
         if (a.length != b.length)
             return a.length > b.length;
-        if (a.last < b.first || b.last < a.first)
-            return a.first < b.first;
         if (a.finfo != b.finfo)
             return a.finfo > b.finfo;
         if (a.llim != b.llim)
