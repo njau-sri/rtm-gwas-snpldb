@@ -25,7 +25,7 @@ struct Parameter
     std::string fam;
     double maf = 0.01;
     double inform = 0.95;
-    int maxlen = 200000;
+    int maxlen = 100000;
     int llim = 70;
     int ulim = 98;
     int recomb = 90;
