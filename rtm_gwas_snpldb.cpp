@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include "version.h"
 #include "cmdline.h"
 #include "vcf.h"
 #include "split.h"
@@ -658,7 +659,7 @@ int rtm_gwas_snpldb_fam()
 
 int rtm_gwas_snpldb(int argc, char *argv[])
 {
-    std::cerr << "RTM-GWAS 2019.0.dev SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
+    std::cerr << "RTM-GWAS " RTM_GWAS_VERSION " SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
 
     CmdLine cmd;
 

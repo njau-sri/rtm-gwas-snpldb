@@ -21,4 +21,5 @@ HEADERS += \
     util.h \
     vcf.h \
     block_gabriel.h \
-    haplotype.h
+    haplotype.h \
+    version.h
