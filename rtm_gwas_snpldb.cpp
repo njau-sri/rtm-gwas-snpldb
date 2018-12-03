@@ -659,7 +659,7 @@ int rtm_gwas_snpldb_fam()
 
 int rtm_gwas_snpldb(int argc, char *argv[])
 {
-    std::cerr << "RTM-GWAS " RTM_GWAS_VERSION " SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
+    std::cerr << "RTM-GWAS " RTM_GWAS_VERSION_STRING " SNPLDB (Built on " __DATE__ " " __TIME__ ")\n";
 
     CmdLine cmd;
 
