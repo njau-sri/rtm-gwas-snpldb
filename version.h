@@ -3,7 +3,7 @@
 
 
 #ifndef RTM_GWAS_VERSION
-#define RTM_GWAS_VERSION    2019.0.dev
+#define RTM_GWAS_VERSION    unknown
 #endif
 
 
