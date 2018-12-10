@@ -8,7 +8,7 @@
 
 struct BlockGabriel
 {
-    double finfo = 0.95;
+    double frac = 0.95;
     int maxlen = 100000;
     int llim = 70;
     int ulim = 98;

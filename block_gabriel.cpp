@@ -11,14 +11,14 @@ using std::size_t;
 namespace {
 
 
-static const double g_eps = std::numeric_limits<double>::epsilon();
+static const double g_EPS = std::numeric_limits<double>::epsilon();
 
 
 struct BlockInfo
 {
     char llim;
     char ulim;
-    short finfo;
+    short frac;
     int first;
     int last;
     int length;
@@ -277,12 +277,12 @@ int find_f(const BlockGabriel &par, const std::vector<int> &pos, const std::vect
             auto q = j - i + 1;
             if ((q == 2 && dist > 20000) || (q == 3 && dist > 30000))
                 continue;
-            auto finfo = calc_frac_info_pair(i, j, sr, ss);
-            if (finfo - par.finfo > g_eps) {
+            auto frac = calc_frac_info_pair(i, j, sr, ss);
+            if (frac - par.frac > g_EPS) {
                 BlockInfo bi;
                 bi.llim = ci[j][i];
                 bi.ulim = ci[i][j];
-                bi.finfo = static_cast<short>(finfo*10000);
+                bi.frac = static_cast<short>(frac*10000);
                 bi.first = static_cast<int>(i);
                 bi.last = static_cast<int>(j);
                 bi.length = dist;
@@ -369,12 +369,12 @@ int find_w(const BlockGabriel &par, const std::vector<int> &pos, const std::vect
                 auto q = j - i + 1;
                 if ((q == 2 && dist > 20000) || (q == 3 && dist > 30000))
                     continue;
-                auto finfo = calc_frac_info_pair(i, j, sr, ss);
-                if (finfo - par.finfo > g_eps) {
+                auto frac = calc_frac_info_pair(i, j, sr, ss);
+                if (frac - par.frac > g_EPS) {
                     BlockInfo bi;
                     bi.llim = ci[j][i];
                     bi.ulim = ci[i][j];
-                    bi.finfo = static_cast<short>(finfo*10000);
+                    bi.frac = static_cast<short>(frac*10000);
                     bi.first = static_cast<int>(ii);
                     bi.last = static_cast<int>(jj);
                     bi.length = dist;
@@ -462,7 +462,7 @@ int find_f_omp(const BlockGabriel &par, const std::vector<int> &pos, const std::
         ss[j][i] = strong34;
     }
 
-    std::vector<short> vinfo(n,-1);
+    std::vector<short> vfrac(n,-1);
 
     #pragma omp parallel for schedule(dynamic)
     for (size_t k = 0; k < n; ++k) {
@@ -477,13 +477,13 @@ int find_f_omp(const BlockGabriel &par, const std::vector<int> &pos, const std::
         if ((q == 2 && dist > 20000) || (q == 3 && dist > 30000))
             continue;
 
-        auto finfo = calc_frac_info_pair(i, j, sr, ss);
-        if (finfo - par.finfo > g_eps)
-            vinfo[k] = static_cast<short>(finfo*10000);
+        auto frac = calc_frac_info_pair(i, j, sr, ss);
+        if (frac - par.frac > g_EPS)
+            vfrac[k] = static_cast<short>(frac*10000);
     }
 
     size_t nb = 0;
-    for (auto e : vinfo) {
+    for (auto e : vfrac) {
         if (e > 0)
             ++nb;
     }
@@ -494,11 +494,11 @@ int find_f_omp(const BlockGabriel &par, const std::vector<int> &pos, const std::
         auto i = pidx[k].first;
         auto j = pidx[k].second;
         auto dist = pos[j] - pos[i];
-        if (vinfo[k] > 0) {
+        if (vfrac[k] > 0) {
             BlockInfo bi;
             bi.llim = ci[j][i];
             bi.ulim = ci[i][j];
-            bi.finfo = vinfo[k];
+            bi.frac = vfrac[k];
             bi.first = static_cast<int>(i);
             bi.last = static_cast<int>(j);
             bi.length = dist;
@@ -529,7 +529,7 @@ int find_w_omp(const BlockGabriel &par, const std::vector<int> &pos, const std::
         }
     }
 
-    std::vector<short> vinfo;
+    std::vector<short> vfrac;
     std::vector< std::pair<size_t,size_t> > pidx;
     std::vector< std::vector<char> > ci(w, std::vector<char>(w, 0));
     std::vector< std::vector<char> > sr(w, std::vector<char>(w, 0));
@@ -587,7 +587,7 @@ int find_w_omp(const BlockGabriel &par, const std::vector<int> &pos, const std::
             ss[j][i] = strong34;
         }
 
-        vinfo.assign(n, -1);
+        vfrac.assign(n, -1);
 
         #pragma omp parallel for schedule(dynamic)
         for (size_t k = 0; k < n; ++k) {
@@ -605,13 +605,13 @@ int find_w_omp(const BlockGabriel &par, const std::vector<int> &pos, const std::
             if ((q == 2 && dist > 20000) || (q == 3 && dist > 30000))
                 continue;
 
-            auto finfo = calc_frac_info_pair(i, j, sr, ss);
-            if (finfo - par.finfo > g_eps)
-                vinfo[k] = static_cast<short>(finfo*10000);
+            auto frac = calc_frac_info_pair(i, j, sr, ss);
+            if (frac - par.frac > g_EPS)
+                vfrac[k] = static_cast<short>(frac*10000);
         }
 
         size_t nb = 0;
-        for (auto e : vinfo) {
+        for (auto e : vfrac) {
             if (e > 0)
                 ++nb;
         }
@@ -625,11 +625,11 @@ int find_w_omp(const BlockGabriel &par, const std::vector<int> &pos, const std::
             auto ii = curr + i;
             auto jj = curr + j;
             auto dist = pos[jj] - pos[ii];
-            if (vinfo[k] > 0) {
+            if (vfrac[k] > 0) {
                 BlockInfo bi;
                 bi.llim = ci[j][i];
                 bi.ulim = ci[i][j];
-                bi.finfo = vinfo[k];
+                bi.frac = vfrac[k];
                 bi.first = static_cast<int>(ii);
                 bi.last = static_cast<int>(jj);
                 bi.length = dist;
@@ -683,8 +683,8 @@ int find_block(const BlockGabriel &par, const std::vector<int> &pos, const std::
     auto cmp = [](const BlockInfo &a, const BlockInfo &b) {
         if (a.length != b.length)
             return a.length > b.length;
-        if (a.finfo != b.finfo)
-            return a.finfo > b.finfo;
+        if (a.frac != b.frac)
+            return a.frac > b.frac;
         if (a.llim != b.llim)
             return a.llim > b.llim;
         if (a.ulim != b.ulim)
@@ -734,8 +734,8 @@ int find_block_omp(const BlockGabriel &par, const std::vector<int> &pos, const s
     auto cmp = [](const BlockInfo &a, const BlockInfo &b) {
         if (a.length != b.length)
             return a.length > b.length;
-        if (a.finfo != b.finfo)
-            return a.finfo > b.finfo;
+        if (a.frac != b.frac)
+            return a.frac > b.frac;
         if (a.llim != b.llim)
             return a.llim > b.llim;
         if (a.ulim != b.ulim)

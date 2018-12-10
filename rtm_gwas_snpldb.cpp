@@ -295,7 +295,7 @@ int define_block(const Genotype &gt, std::vector<std::string> &chrom, std::vecto
     gab.llim = par.llim;
     gab.ulim = par.ulim;
     gab.recomb = par.recomb;
-    gab.finfo = par.inform;
+    gab.frac = par.inform;
 
     auto chrid = stable_unique(gt.chr);
     auto sidx = index_snp(gt, chrid);
@@ -349,7 +349,7 @@ int define_gblock(const Genotype &gt, std::vector<std::string> &name, std::vecto
     gab.llim = par.llim;
     gab.ulim = par.ulim;
     gab.recomb = par.recomb;
-    gab.finfo = par.inform;
+    gab.frac = par.inform;
 
     auto chrid = stable_unique(gt.chr);
     auto sidx = index_snp(gt, chrid);
