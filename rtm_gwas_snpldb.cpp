@@ -64,31 +64,53 @@ int read_block(const std::string &filename, std::vector<std::string> &chrom,
         auto pos2 = std::stoi(vs[2]);
 
         if (pos2 <= pos1) {
-            std::cerr << "ERROR: invalid block position at line " << ln << ": "
-                      << vs[0] << " " << vs[1] << " " << vs[2] << "\n";
-            return 1;
-        }
-
-        size_t i = 0;
-        auto n = start.size();
-
-        for (i = 0; i < n; ++i) {
-            if (vs[0] != chrom[i])
-                continue;
-            if ((pos1 >= start[i] && pos1 <= stop[i]) || (pos2 >= start[i] && pos2 <= stop[i]))
-                break;
-        }
-
-        if (i < n) {
-            std::cerr << "ERROR: overlapping block is not allowed:\n"
-                      << "   " << chrom[i] << " " << start[i] << " " << stop[i] << "\n"
-                      << "   " << vs[0] << " " << pos1 << " " << pos2 << "\n";
+            std::cerr << "ERROR: invalid block position at line " << ln << ": " << vs[1] << " " << vs[2] << "\n";
             return 1;
         }
 
         chrom.push_back(vs[0]);
         start.push_back(pos1);
         stop.push_back(pos2);
+    }
+
+    auto n = chrom.size();
+    bool require_sort = false;
+
+    std::vector<size_t> ord;
+    ord.reserve(n);
+
+    for (auto &e: stable_unique(chrom)) {
+        std::vector<size_t> idx;
+        for (size_t i = 0; i < n; ++i) {
+            if (chrom[i] == e)
+                idx.push_back(i);
+        }
+        auto pos = subset(start, idx);
+        if ( ! std::is_sorted(pos.begin(), pos.end()) ) {
+            require_sort = true;
+            subset(idx,order(pos)).swap(idx);
+        }
+
+        size_t j = 0;
+        int prev_stop = -1;
+        for (auto i : idx) {
+            if (start[i] <= prev_stop) {
+                std::cerr << "ERROR: overlapping block is not allowed:\n"
+                          << "   " << chrom[j] << " " << start[j] << " " << stop[j] << "\n"
+                          << "   " << chrom[i] << " " << start[i] << " " << stop[i] << "\n";
+                return 1;
+            }
+            j = i;
+            prev_stop = stop[i];
+        }
+
+        ord.insert(ord.end(), idx.begin(), idx.end());
+    }
+
+    if ( require_sort ) {
+        subset(chrom, ord).swap(chrom);
+        subset(start, ord).swap(start);
+        subset(stop, ord).swap(stop);
     }
 
     return 0;
@@ -124,25 +146,7 @@ int read_gene(const std::string &filename, std::vector<std::string> &gene, std::
         auto pos2 = std::stoi(vs[3]);
 
         if (pos2 <= pos1) {
-            std::cerr << "ERROR: invalid gene position at line " << ln << ": "
-                      << vs[0] << " " << vs[1] << " " << vs[2] << " " << vs[3] << "\n";
-            return 1;
-        }
-
-        size_t i = 0;
-        auto n = start.size();
-
-        for (i = 0; i < n; ++i) {
-            if (vs[1] != chrom[i])
-                continue;
-            if ((pos1 >= start[i] && pos1 <= stop[i]) || (pos2 >= start[i] && pos2 <= stop[i]))
-                break;
-        }
-
-        if (i < n) {
-            std::cerr << "ERROR: overlapping gene is not allowed:\n"
-                      << "   " << gene[i] << " " << chrom[i] << " " << start[i] << " " << stop[i] << "\n"
-                      << "   " << vs[0] << " " << vs[1] << " " << pos1 << " " << pos2 << "\n";
+            std::cerr << "ERROR: invalid gene position at line " << ln << ": " << vs[2] << " " << vs[3] << "\n";
             return 1;
         }
 
@@ -150,6 +154,47 @@ int read_gene(const std::string &filename, std::vector<std::string> &gene, std::
         chrom.push_back(vs[1]);
         start.push_back(pos1);
         stop.push_back(pos2);
+    }
+
+    auto n = chrom.size();
+    bool require_sort = false;
+
+    std::vector<size_t> ord;
+    ord.reserve(n);
+
+    for (auto &e: stable_unique(chrom)) {
+        std::vector<size_t> idx;
+        for (size_t i = 0; i < n; ++i) {
+            if (chrom[i] == e)
+                idx.push_back(i);
+        }
+        auto pos = subset(start, idx);
+        if ( ! std::is_sorted(pos.begin(), pos.end()) ) {
+            require_sort = true;
+            subset(idx,order(pos)).swap(idx);
+        }
+
+        size_t j = 0;
+        int prev_stop = -1;
+        for (auto i : idx) {
+            if (start[i] <= prev_stop) {
+                std::cerr << "ERROR: overlapping gene is not allowed:\n"
+                          << "   " << gene[j] << " " << chrom[j] << " " << start[j] << " " << stop[j] << "\n"
+                          << "   " << gene[i] << " " << chrom[i] << " " << start[i] << " " << stop[i] << "\n";
+                return 1;
+            }
+            j = i;
+            prev_stop = stop[i];
+        }
+
+        ord.insert(ord.end(), idx.begin(), idx.end());
+    }
+
+    if ( require_sort ) {
+        subset(gene, ord).swap(gene);
+        subset(chrom, ord).swap(chrom);
+        subset(start, ord).swap(start);
+        subset(stop, ord).swap(stop);
     }
 
     return 0;
