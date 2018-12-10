@@ -680,7 +680,7 @@ int find_block(const BlockGabriel &par, const std::vector<int> &pos, const std::
     if ( blk.empty() )
         return 0;
 
-    auto cmp = [&](const BlockInfo &a, const BlockInfo &b) {
+    auto cmp = [](const BlockInfo &a, const BlockInfo &b) {
         if (a.length != b.length)
             return a.length > b.length;
         if (a.finfo != b.finfo)
@@ -731,7 +731,7 @@ int find_block_omp(const BlockGabriel &par, const std::vector<int> &pos, const s
     if ( blk.empty() )
         return 0;
 
-    auto cmp = [&](const BlockInfo &a, const BlockInfo &b) {
+    auto cmp = [](const BlockInfo &a, const BlockInfo &b) {
         if (a.length != b.length)
             return a.length > b.length;
         if (a.finfo != b.finfo)
