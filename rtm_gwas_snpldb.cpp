@@ -667,6 +667,8 @@ int rtm_gwas_snpldb_fam()
     if ( ! ofs )
         std::cerr << "ERROR: can't open file for writing: " << par.out << ".block\n";
     else {
+        if ( ! blk_name.empty() )
+            ofs << "Block\t";
         ofs << "Chromosome\tStart\tStop\tLength\tSNPs\tRecombination\n";
         for (size_t i = 0; i < nb; ++i) {
             if ( ! blk_name.empty() )
@@ -890,6 +892,8 @@ int rtm_gwas_snpldb(int argc, char *argv[])
     if ( ! ofs )
         std::cerr << "ERROR: can't open file for writing: " << par.out << ".block\n";
     else {
+        if ( ! blk_name.empty() )
+            ofs << "Block\t";
         ofs << "Chromosome\tStart\tStop\tLength\tSNPs\tRecombination\n";
         for (size_t i = 0; i < nb; ++i) {
             if ( ! blk_name.empty() )
