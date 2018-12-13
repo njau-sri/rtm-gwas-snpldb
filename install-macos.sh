@@ -3,7 +3,7 @@
 rm -rf macos
 mkdir macos
 
-TARGET=$1/rtm-gwas-snpldb
+TARGET=macos/rtm-gwas-snpldb
 
 if [ -z "$RTM_GWAS_VERSION" ]; then
     RTM_GWAS_VERSION=unknown
