@@ -125,11 +125,10 @@ std::vector<T> subset(const std::vector<T> &vec, const std::vector<char> &mask)
 {
     std::vector<T> out;
 
-    out.reserve( mask.size() - std::count(mask.begin(), mask.end(), 0) );
+    out.reserve( mask.size() - count(mask, 0) );
 
-    std::size_t i = 0, n = vec.size();
-
-    for (i = 0; i < n; ++i)
+    auto n = vec.size();
+    for (std::size_t i = 0; i < n; ++i)
         if ( mask[i] )
             out.push_back(vec[i]);
 
