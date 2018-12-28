@@ -441,6 +441,7 @@ int define_gblock(const Genotype &gt, std::vector<std::string> &name, std::vecto
         if ( ! idx.empty() ) {
             recode_012(gt, idx, pos, dat);
 
+            bpos.clear();
             int ret = par.openmp ? find_block_omp(gab, pos, dat, bpos) :
                                    find_block(gab, pos, dat, bpos);
             if (ret != 0)
