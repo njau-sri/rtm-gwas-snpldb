@@ -897,6 +897,8 @@ int rtm_gwas_snpldb(int argc, char *argv[])
             ofs << "Block\t";
         ofs << "Chromosome\tStart\tStop\tLength\tSNPs\tRecombination\n";
         for (size_t i = 0; i < nb; ++i) {
+            if (blk_size[i] == 0)
+                continue;
             if ( ! blk_name.empty() )
                 ofs << blk_name[i] << "\t";
             ofs << blk_chr[i] << "\t" << blk_start[i] << "\t" << blk_stop[i] << "\t"
