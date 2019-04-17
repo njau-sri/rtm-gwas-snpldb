@@ -613,7 +613,7 @@ int rtm_gwas_snpldb_fam()
                 inblock[j] = true;
                 jidx.push_back(j);
             }
-            blk_length[k] = blk_stop[k] - blk_start[k];
+            blk_length[k] = blk_stop[k] - blk_start[k] + 1;
             blk_size[k] = jidx.size();
             if ( jidx.empty() ) {
                 std::cerr << "WARNING: no SNPs were found in block: " << chrid[i] << " "
@@ -839,7 +839,7 @@ int rtm_gwas_snpldb(int argc, char *argv[])
                 jidx.push_back(j);
             }
 
-            blk_length[k] = blk_stop[k] - blk_start[k];
+            blk_length[k] = blk_stop[k] - blk_start[k] + 1;
             blk_size[k] = jidx.size();
 
             if ( jidx.empty() ) {
