@@ -32,7 +32,7 @@ CXX := clang++
 LDFLAGS := $(filter-out -s -static,$(LDFLAGS))
 endif
 
-.PHONY: all win32 win64 macos
+.PHONY: all win32 win64 macos clean
 
 all: $(EXE)
 
