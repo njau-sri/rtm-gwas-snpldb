@@ -7,7 +7,7 @@
 #include "vcf.h"
 #include "split.h"
 #include "util.h"
-#include "block_gabriel.h"
+#include "gabriel.h"
 #include "haplotype.h"
 
 

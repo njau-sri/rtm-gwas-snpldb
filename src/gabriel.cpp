@@ -2,7 +2,7 @@
 #include <limits>
 #include <iostream>
 #include <algorithm>
-#include "block_gabriel.h"
+#include "gabriel.h"
 
 
 using std::size_t;
