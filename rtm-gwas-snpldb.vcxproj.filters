@@ -27,7 +27,7 @@
     <ClCompile Include="src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\rtm_gwas_snpldb.cpp">
+    <ClCompile Include="src\snpldb.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\util.cpp">

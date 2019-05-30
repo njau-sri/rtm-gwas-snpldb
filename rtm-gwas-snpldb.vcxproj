@@ -131,7 +131,7 @@
     <ClCompile Include="src\cmdline.cpp" />
     <ClCompile Include="src\haplotype.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\rtm_gwas_snpldb.cpp" />
+    <ClCompile Include="src\snpldb.cpp" />
     <ClCompile Include="src\util.cpp" />
     <ClCompile Include="src\vcf.cpp" />
   </ItemGroup>
