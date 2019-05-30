@@ -127,8 +127,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\block_gabriel.cpp" />
     <ClCompile Include="src\cmdline.cpp" />
+    <ClCompile Include="src\gabriel.cpp" />
     <ClCompile Include="src\haplotype.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\snpldb.cpp" />
@@ -136,8 +136,8 @@
     <ClCompile Include="src\vcf.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\block_gabriel.h" />
     <ClInclude Include="src\cmdline.h" />
+    <ClInclude Include="src\gabriel.h" />
     <ClInclude Include="src\haplotype.h" />
     <ClInclude Include="src\split.h" />
     <ClInclude Include="src\util.h" />

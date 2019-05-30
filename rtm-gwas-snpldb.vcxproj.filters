@@ -15,10 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\block_gabriel.cpp">
+    <ClCompile Include="src\cmdline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\cmdline.cpp">
+    <ClCompile Include="src\gabriel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\haplotype.cpp">
@@ -38,10 +38,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\block_gabriel.h">
+    <ClInclude Include="src\cmdline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\cmdline.h">
+    <ClInclude Include="src\gabriel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\haplotype.h">
