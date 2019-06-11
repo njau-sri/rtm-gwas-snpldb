@@ -714,7 +714,7 @@ int rtm_gwas_snpldb(int argc, char *argv[])
     cmd.add("--vcf", "VCF file", "");
     cmd.add("--block", "predefined block file", "");
     cmd.add("--gene", "gene coordinate file", "");
-    cmd.add("--out", "output file prefix", "rtm-gwas-snpldb.out");
+    cmd.add("--out", "output file prefix", "snpldb.out");
     cmd.add("--maf", "minimum minor haplotype frequency", "0.01");
     cmd.add("--maxlen", "maximum length of blocks", "100000");
 
